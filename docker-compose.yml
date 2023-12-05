@@ -1,5 +1,28 @@
 version: '3'
+
 services:
+  nginx-proxy:
+    image: jwilder/nginx-proxy
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - vhostd:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - certs:/etc/nginx/certs:ro
+
+  nginx-proxy-letsencrypt:
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    depends_on:
+      - nginx-proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - vhostd:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - certs:/etc/nginx/certs
+
   db:
     restart: always
     image: postgres:12
@@ -12,25 +35,20 @@ services:
   app:
     restart: always
     image: getfider/fider:stable
-    ports:
-      - "80:3000"
     environment:
+      VIRTUAL_HOST: feedback.yoursite.com
+      LETSENCRYPT_HOST: feedback.yoursite.com
+      LETSENCRYPT_EMAIL: your-email@example.com
       BASE_URL: https://feedback.yoursite.com
       DATABASE_URL: postgres://fider:s0m3g00dp4ssw0rd@db:5432/fider?sslmode=disable
       JWT_SECRET: VERY_STRONG_SECRET_SHOULD_BE_USED_HERE
       EMAIL_NOREPLY: noreply@yourdomain.com
-      # Uncomment and configure the email service you are going to use
-      # EMAIL_MAILGUN_API: key-yourkeygoeshere
-      # EMAIL_MAILGUN_DOMAIN: yourdomain.com
-      # EMAIL_MAILGUN_REGION: US
-      # EMAIL_SMTP_HOST: smtp.yourdomain.com
-      # EMAIL_SMTP_PORT: 587
-      # EMAIL_SMTP_USERNAME: user@yourdomain.com
-      # EMAIL_SMTP_PASSWORD: s0m3p4ssw0rd
-      # EMAIL_SMTP_ENABLE_STARTTLS: 'true'
-      # EMAIL_AWSSES_REGION: us-east-1
-      # EMAIL_AWSSES_ACCESS_KEY_ID: youraccesskeygoeshere
-      # EMAIL_AWSSES_SECRET_ACCESS_KEY: yoursecretkeygoeshere
-
+      # Email service configuration
     depends_on:
       - db
+      - nginx-proxy
+
+volumes:
+  certs:
+  html:
+  vhostd:
